@@ -13,28 +13,37 @@ mov [BOOT_DRIVE], dl
 mov bp, 0x9000
 mov sp, bp
 
-mov si, message ; Point SI register to message
-mov ah, 0x0e    ; Set higher bits to the display character command
+call load_kernel
+call switch_to_32bit
 
-.loop:
-    lodsb       ; Load the character within the AL register, and increment SI
-    cmp al, 0   ; Is the AL register a null byte?
-    je halt     ; Jump to halt
-    int 0x10    ; Trigger video services interrupt
-    jmp .loop   ; Loop again
+jmp $
 
-halt:
-    hlt         ; Stop
+%include "disk.asm"
+%include "gdt.asm"
+%include "switch-to-32bit.asm"
 
-message:
-    db "Call load_kernel", 0
+[bits 16]
+load_kernel:
+    mov bx, KERNEL_OFFSET ; bx -> destination
+    mov dh, 2 ; dh -> num ssectors
+    mov dl, [BOOT_DRIVE] ; dl -> disk
+    call disk_load
+    ret
 
-
+[bits 32]
+BEGIN_32BIT:
+    call KERNEL_OFFSET ; give control to kernel
+    jmp $ ; loop in case kernel returns
 
 ; Boot drive variable
 BOOT_DRIVE db 0
 
-; Mark the device as bootable
-times 510-($-$$) db 0 ; Add any additional zeroes to make 510 bytes in total
-dw 0xAA55 ; Write the final 2 bytes as the magic number 0x55aa, remembering x86 little endian
+; Padding
+time 410 - ($-$$) db  0
+
+; Magic number
+dw 0xaa55
+
+
+
 
